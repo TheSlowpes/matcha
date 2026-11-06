@@ -335,7 +335,7 @@ end)
 
 ### email_received
 
-Fired for each email when a folder's email list is fetched. Receives an email table.
+Fired for each new email that appears when a folder's email list is fetched. Emails already present from a previous fetch (or from the local cache) are not reported again, and the very first sync of a folder fires nothing. Receives an email table.
 
 ```lua
 matcha.on("email_received", function(email)

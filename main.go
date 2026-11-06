@@ -87,8 +87,11 @@ func main() {
 	startMacOSSync(cfg)
 	ensureProtocolHandler()
 
-	p := tea.NewProgram(initialModel)
-	if _, err := p.Run(); err != nil {
+	profiled, stopProfiling := startProfiling(initialModel)
+	p := tea.NewProgram(profiled)
+	_, err := p.Run()
+	stopProfiling()
+	if err != nil {
 		plugins.Close()
 		fmt.Printf("Alas, there's been an error: %v", err)
 		cliutil.Exit(1)

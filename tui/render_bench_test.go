@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/floatpane/matcha/config"
 	"github.com/floatpane/matcha/fetcher"
 )
@@ -58,5 +59,26 @@ func BenchmarkInboxConstruction(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = NewInbox(emails, accounts)
+	}
+}
+
+func BenchmarkInboxViewLarge(b *testing.B) {
+	accounts := []config.Account{{ID: "a", Email: "a@example.com"}}
+	emails := make([]fetcher.Email, 27000)
+	for i := range emails {
+		emails[i] = fetcher.Email{
+			UID:       uint32(i),
+			From:      "bench@example.com",
+			Subject:   "Subject line " + strings.Repeat("y", 20),
+			Date:      time.Now().Add(-time.Duration(i) * time.Minute),
+			AccountID: "a",
+		}
+	}
+	inbox := NewInbox(emails, accounts)
+	inbox.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = inbox.View()
 	}
 }

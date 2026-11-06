@@ -295,13 +295,9 @@ func FlattenAndSort(emailsByAccount map[string][]fetcher.Email) []fetcher.Email 
 	for _, emails := range emailsByAccount {
 		allEmails = append(allEmails, emails...)
 	}
-	for i := 0; i < len(allEmails); i++ {
-		for j := i + 1; j < len(allEmails); j++ {
-			if allEmails[j].Date.After(allEmails[i].Date) {
-				allEmails[i], allEmails[j] = allEmails[j], allEmails[i]
-			}
-		}
-	}
+	slices.SortStableFunc(allEmails, func(a, b fetcher.Email) int {
+		return b.Date.Compare(a.Date)
+	})
 	return allEmails
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/floatpane/matcha/backend"
 	"github.com/floatpane/matcha/config"
 	"github.com/floatpane/matcha/fetcher"
+	"github.com/floatpane/matcha/internal/emailstore"
 	"github.com/floatpane/matcha/internal/httpclient"
 	"github.com/floatpane/matcha/tui"
 )
@@ -206,21 +207,8 @@ func FetchFolderEmailsCmd(cfg *config.Config, folderName string) tea.Cmd {
 
 		wg.Wait()
 
-		var allEmails []fetcher.Email
-		for _, emails := range emailsByAccount {
-			allEmails = append(allEmails, emails...)
-		}
-
-		for i := 0; i < len(allEmails); i++ {
-			for j := i + 1; j < len(allEmails); j++ {
-				if allEmails[j].Date.After(allEmails[i].Date) {
-					allEmails[i], allEmails[j] = allEmails[j], allEmails[i]
-				}
-			}
-		}
-
 		return tui.FolderEmailsFetchedMsg{
-			Emails:     allEmails,
+			Emails:     emailstore.FlattenAndSort(emailsByAccount),
 			FolderName: folderName,
 		}
 	}
