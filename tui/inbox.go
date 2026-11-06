@@ -9,6 +9,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/paginator"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -486,6 +487,7 @@ func (m *Inbox) updateList() {
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = lipgloss.NewStyle().Foreground(theme.ActiveTheme.Accent).Bold(true)
 	l.Styles.PaginationStyle = paginationStyle
+	l.Paginator.ArabicFormat = l.Styles.ArabicPagination.Render("%d/%d")
 	l.Styles.HelpStyle = inboxHelpStyle
 	l.SetStatusBarItemName("email", "emails")
 	// The help bar is deliberately minimal: navigation essentials plus a hint
@@ -1340,6 +1342,15 @@ func (m *Inbox) View() tea.View {
 	// Toggle the list title visibility based on the header component state.
 	// The list title is the "Inbox" / "Sent" / folder name header line.
 	m.list.SetShowTitle(headerVisible)
+
+	// The dot paginator builds one dot per page on every render, which is
+	// very slow for large mailboxes, and the list falls back to "n/m" once
+	// the dots no longer fit anyway. Switch before rendering instead.
+	if m.list.Paginator.TotalPages > m.list.Width() {
+		m.list.Paginator.Type = paginator.Arabic
+	} else {
+		m.list.Paginator.Type = paginator.Dots
+	}
 
 	b.WriteString(m.list.View())
 
