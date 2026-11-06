@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/lipgloss/v2"
@@ -383,6 +384,52 @@ func init() {
 	remoteImageCache = c
 }
 
+// prefetchRemoteImages downloads all remote images referenced by elements in
+// parallel and returns them keyed by URL, so the sequential render pass does
+// not wait on each download in turn.
+func prefetchRemoteImages(elements []clib.HTMLElement) map[string]string {
+	const maxConcurrent = 8
+
+	seen := make(map[string]struct{})
+	var urls []string
+	for _, elem := range elements {
+		if elem.Type != clib.HElemImage {
+			continue
+		}
+		src := strings.TrimSpace(elem.Attr1)
+		if !isRemoteImageURL(src) || hasTerminalControls(src) {
+			continue
+		}
+		if _, dup := seen[src]; dup {
+			continue
+		}
+		seen[src] = struct{}{}
+		urls = append(urls, src)
+	}
+	if len(urls) == 0 {
+		return nil
+	}
+
+	results := make(map[string]string, len(urls))
+	var mu sync.Mutex
+	sem := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+	for _, u := range urls {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			payload := fetchRemoteBase64(u)
+			mu.Lock()
+			results[u] = payload
+			mu.Unlock()
+		}(u)
+	}
+	wg.Wait()
+	return results
+}
+
 func fetchRemoteBase64(url string) string {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return ""
@@ -693,6 +740,11 @@ func renderHTMLToText(htmlBody []byte, inline map[string]string, h1Style, h2Styl
 		return "", nil, fmt.Errorf("could not parse email body")
 	}
 
+	var remote map[string]string
+	if !disableImages && imageProtocolSupported() {
+		remote = prefetchRemoteImages(elements)
+	}
+
 	// Process elements: apply styles and collect image placements.
 	var text strings.Builder
 	var imgIndex int
@@ -737,7 +789,7 @@ func renderHTMLToText(htmlBody []byte, inline map[string]string, h1Style, h2Styl
 			}
 
 		case clib.HElemImage:
-			renderImageElement(&text, &imgIndex, &pendingImages, elem, inline, disableImages)
+			renderImageElement(&text, &imgIndex, &pendingImages, elem, inline, remote, disableImages)
 
 		case clib.HElemTable:
 			headerRows := 0
@@ -788,7 +840,7 @@ func renderHTMLToText(htmlBody []byte, inline map[string]string, h1Style, h2Styl
 	return result, placements, nil
 }
 
-func renderImageElement(text *strings.Builder, imgIndex *int, pendingImages *[]pendingImage, elem clib.HTMLElement, inline map[string]string, disableImages bool) {
+func renderImageElement(text *strings.Builder, imgIndex *int, pendingImages *[]pendingImage, elem clib.HTMLElement, inline, remote map[string]string, disableImages bool) {
 	src := strings.TrimSpace(elem.Attr1)
 	alt := stripTerminalControls(elem.Attr2)
 	if hasTerminalControls(src) {
@@ -796,7 +848,7 @@ func renderImageElement(text *strings.Builder, imgIndex *int, pendingImages *[]p
 	}
 
 	if !disableImages && imageProtocolSupported() {
-		payload := resolveImagePayload(src, inline)
+		payload := resolveImagePayload(src, inline, remote)
 
 		if payload != "" {
 			encoded, rows := prerenderImage(payload)
@@ -854,7 +906,7 @@ func buildImagePlacements(result string, pendingImages []pendingImage) ([]ImageP
 	return placements, result
 }
 
-func resolveImagePayload(src string, inline map[string]string) string {
+func resolveImagePayload(src string, inline, remote map[string]string) string {
 	switch {
 	case strings.HasPrefix(src, "data:image/"):
 		return dataURIBase64(src)
@@ -869,6 +921,9 @@ func resolveImagePayload(src string, inline map[string]string) string {
 		debugImageProtocol("cid lookup skipped inline map nil for %s", cid)
 		return ""
 	case strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://"):
+		if payload, ok := remote[src]; ok {
+			return payload
+		}
 		return fetchRemoteBase64(src)
 	}
 	return ""
