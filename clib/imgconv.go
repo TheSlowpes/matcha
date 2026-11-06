@@ -22,8 +22,11 @@ func DecodeToPNG(data []byte) (ImageConvertResult, bool) {
 		return ImageConvertResult{}, false
 	}
 
+	// The PNG only travels to the local terminal, so favour encode speed
+	// over output size.
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+	enc := png.Encoder{CompressionLevel: png.BestSpeed}
+	if err := enc.Encode(&buf, img); err != nil {
 		return ImageConvertResult{}, false
 	}
 
