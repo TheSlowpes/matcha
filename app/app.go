@@ -866,10 +866,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo
 
 	if m.palette.IsOpen() {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-			switch keyMsg.String() {
-			case "ctrl+c":
+			// The palette is a text input, so only non-printable quit keys apply.
+			if tui.IsQuitKey(nil, keyMsg.String()) {
 				m.shutdownService()
 				return m, tea.Quit
+			}
+			switch keyMsg.String() {
 			case config.Keybinds.Global.Cancel:
 				m.palette.Close()
 				return m, nil
@@ -890,6 +892,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo
 		palette.Allowed(m.current) {
 		cmd := m.palette.Open(palette.BuildCommands(m.current, m.folderInbox, m.config), m.width, m.contentHeight())
 		return m, cmd
+	}
+
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok && tui.IsQuitKey(m.current, keyMsg.String()) {
+		if composer := getCurrentComposer(m.current); composer != nil && composer.HasContent() {
+			m.saveDraftOnQuit(composer)
+		}
+		m.shutdownService()
+		return m, tea.Quit
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok && keyMsg.String() == config.Keybinds.Global.Cancel {
@@ -949,14 +959,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo
 				}
 			}
 		}
-		if msg.String() == "ctrl+c" {
-			if composer := getCurrentComposer(m.current); composer != nil && composer.HasContent() {
-				m.saveDraftOnQuit(composer)
-			}
-			m.shutdownService()
-			return m, tea.Quit
-		}
-		if msg.String() == "esc" {
+		if msg.String() == config.Keybinds.Global.Cancel {
 			switch m.current.(type) {
 			case *tui.FilePicker:
 				return m, func() tea.Msg { return tui.CancelFilePickerMsg{} }

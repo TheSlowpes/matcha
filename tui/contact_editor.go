@@ -83,10 +83,6 @@ func (m *ContactEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg { return GoToSettingsMsg{} }
 		}
 
-		if msg.String() == kb.Global.Quit {
-			return m, tea.Quit
-		}
-
 		// Navigate suggestions with arrow keys when visible.
 		if m.showSuggestions && m.focus == 1 {
 			switch msg.String() {

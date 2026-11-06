@@ -1273,8 +1273,6 @@ func (m *Composer) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo
 		}
 
 		switch msg.String() {
-		case kb.Global.Quit:
-			return m, tea.Quit
 		case kb.Composer.ExternalEditor:
 			return m, func() tea.Msg { return OpenEditorMsg{} }
 		case kb.Global.Cancel:

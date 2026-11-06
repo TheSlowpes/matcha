@@ -69,8 +69,6 @@ func (m *MailingListEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		kb := config.Keybinds
 		switch msg.String() {
-		case kb.Global.Quit:
-			return m, tea.Quit
 		case kb.Global.Cancel:
 			return m, func() tea.Msg { return GoToSettingsMsg{} }
 		case "tab", keyShiftTab, "up", keyDown:

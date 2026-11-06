@@ -10,4 +10,5 @@ const (
 	keyINBOX    = "INBOX"
 	keyYubikey  = "yubikey"
 	keyShiftTab = "shift+tab"
+	keySpace    = "space"
 )
