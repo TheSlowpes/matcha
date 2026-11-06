@@ -106,6 +106,46 @@ type Model struct {
 	// Track body fetch retries to prevent infinite loops
 	pendingBodyFetchUID   uint32
 	pendingBodyFetchCount int
+
+	// seenEmails records, per folder, which emails plugins have already
+	// been told about via the email_received hook.
+	seenEmails map[string]map[seenEmailKey]struct{}
+}
+
+type seenEmailKey struct {
+	accountID string
+	uid       uint32
+}
+
+// newlyReceived returns the emails in a fresh fetch of folder that were not
+// present before, and records the fetch as the new baseline. The first time
+// a folder is seen (no previous fetch and nothing cached), nothing is
+// considered new so the initial sync doesn't fire a hook per email.
+func (m *Model) newlyReceived(folder string, emails []fetcher.Email) []fetcher.Email {
+	if m.seenEmails == nil {
+		m.seenEmails = make(map[string]map[seenEmailKey]struct{})
+	}
+	prev, hasBaseline := m.seenEmails[folder]
+	if !hasBaseline {
+		cached := m.store.FolderEmails[folder]
+		prev = make(map[seenEmailKey]struct{}, len(cached))
+		for _, e := range cached {
+			prev[seenEmailKey{e.AccountID, e.UID}] = struct{}{}
+		}
+		hasBaseline = len(cached) > 0
+	}
+
+	current := make(map[seenEmailKey]struct{}, len(emails))
+	var fresh []fetcher.Email
+	for _, e := range emails {
+		key := seenEmailKey{e.AccountID, e.UID}
+		current[key] = struct{}{}
+		if _, seen := prev[key]; hasBaseline && !seen {
+			fresh = append(fresh, e)
+		}
+	}
+	m.seenEmails[folder] = current
+	return fresh
 }
 
 // NewModel creates the initial TUI model.
@@ -1211,7 +1251,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo
 			return m, nil
 		}
 		if m.plugins != nil {
-			for _, email := range msg.Emails {
+			for _, email := range m.newlyReceived(msg.FolderName, msg.Emails) {
 				t := m.plugins.EmailToTable(email.UID, email.From, email.To, email.Subject, email.Date, email.IsRead, email.AccountID, msg.FolderName)
 				m.plugins.CallHook(plugin.HookEmailReceived, t)
 			}

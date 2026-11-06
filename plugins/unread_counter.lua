@@ -1,5 +1,5 @@
 -- unread_counter.lua
--- Displays unread count in the inbox title bar.
+-- Displays how many new unread emails have arrived in the current folder.
 
 local matcha = require("matcha")
 
@@ -9,7 +9,7 @@ matcha.on("email_received", function(email)
     if not email.is_read then
         unread = unread + 1
     end
-    matcha.set_status("inbox", unread .. " unread")
+    matcha.set_status("inbox", unread .. " new unread")
 end)
 
 matcha.on("folder_changed", function(folder)
