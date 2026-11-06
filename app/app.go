@@ -109,6 +109,9 @@ type Model struct {
 }
 
 // NewModel creates the initial TUI model.
+// Current returns the active screen.
+func (m *Model) Current() tea.Model { return m.current }
+
 func NewModel(cfg *config.Config, mailtoURL *url.URL, plugins *plugin.Manager, showLogPanel bool, logCh <-chan logging.Entry, logPanel *tui.LogPanel) *Model {
 	idleUpdates := make(chan fetcher.IdleUpdate, 16)
 	store := emailstore.NewStore()
